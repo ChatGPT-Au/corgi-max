@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>버킷리스트</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: "Segoe UI", sans-serif;
+      background: #ffffff;
+    }
+    /* 기존 컨테이너, 이미지, 입력폼 스타일은 그대로 유지 */
+    #bucket-container {
+      max-width: 600px;
+      margin: 40px auto;
+      padding: 20px;
+      position: relative;
+      text-align: center;
+    }
+    #bucket-image {
+      display: block;
+      margin: 0 auto 20px;
+      max-width: 100%;
+      height: auto;
+    }
+    #bucket-form {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 16px;
+      background: #ffffff;
+      border: 1px solid #aaa;
+      border-radius: 24px;
+      z-index: 1000;
+      width: 90%;
+      max-width: 600px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    }
+    #bucket-form input {
+      flex: 1;
+      padding: 10px;
+      border-radius: 24px;
+      border: none;
+      font-size: 16px;
+      outline: none;
+      background-color: transparent;
+    }
+    #bucket-form button {
+      padding: 10px 20px;
+      font-size: 1rem;
+      border: none;
+      background: #3498db;
+      color: white;
+      cursor: pointer;
+      border-radius: 24px;
+      transition: background 0.3s;
+    }
+    #bucket-form button:hover {
+      background: #2980b9;
+    }
+    /* 기존 <ol> 대신 CSS 카운터를 이용해 번호 표시 */
+    #bucket-list {
+      counter-reset: list-counter;
+      padding-left: 0;
+      margin: 30px 0 0;
+      list-style: none;
+    }
+    #bucket-list li {
+      counter-increment: list-counter;
+      position: relative;
+      background: white;
+      padding: 15px 15px 15px 50px;
+      margin-bottom: 10px;
+      border-radius: 4px;
+      border: 1px solid #ddd;
+    }
+    /* 번호 스타일 */
+    #bucket-list li::before {
+      content: counter(list-counter) ". ";
+      position: absolute;
+      left: 15px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-weight: bold;
+    }
+    /* 내부 flex 컨테이너 */
+    #bucket-list li .li-content {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    #bucket-list li.completed {
+      text-decoration: line-through;
+      opacity: 0.6;
+    }
+    /* 우클릭 컨텍스트 메뉴 */
+    .context-menu {
+      position: absolute;
+      top: 50%;
+      right: 10px;
+      transform: translateY(-50%);
+      background: #ffffff;
+      border: 1px solid #aaa;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+      border-radius: 4px;
+      padding: 5px;
+      z-index: 2000;
+    }
+    .context-menu button {
+      display: block;
+      width: 100%;
+      margin: 2px 0;
+      padding: 5px 10px;
+      border: none;
+      background: #3498db;
+      color: white;
+      cursor: pointer;
+      border-radius: 4px;
+      transition: background 0.3s;
+    }
+    .context-menu button:hover {
+      opacity: 0.9;
+    }
+    .context-menu button.delete {
+      background: #e74c3c;
+    }
+  </style>
+</head>
+<body>
+  <div id="bucket-container">
+    <img id="bucket-image" src="bucketlist.jpg" alt="버킷리스트 이미지">
+    <ol id="bucket-list">
+      <!-- 항목들이 추가됩니다 -->
+    </ol>
+  </div>
+
+  <form id="bucket-form">
+    <input type="text" id="bucket-input" placeholder="목표를 입력하세요..." autocomplete="off">
+    <button type="submit">추가</button>
+  </form>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getDatabase, ref, push, onChildAdded, remove, set } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyAVPD6hJVl4vqJac24cLzI-B3ToGLKinfI",
+      authDomain: "waterdragon-499c9.firebaseapp.com",
+      databaseURL: "https://waterdragon-499c9-default-rtdb.firebaseio.com",
+      projectId: "waterdragon-499c9",
+      storageBucket: "waterdragon-499c9.appspot.com",
+      messagingSenderId: "756466741361",
+      appId: "1:756466741361:web:581b9e3b5dfa68ae3eebd0",
+      measurementId: "G-4FGTTYDT5P"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+    const listRef = ref(db, "bucketList");
+
+    const bucketForm = document.getElementById('bucket-form');
+    const bucketInput = document.getElementById('bucket-input');
+    const bucketList = document.getElementById('bucket-list');
+
+    // 항목 추가 → Firebase에 push
+    bucketForm.addEventListener('submit', function(event) {
+      event.preventDefault();
+      const text = bucketInput.value.trim();
+      if (text === "") return;
+      const newItemRef = push(listRef); // 고유 ID 자동 생성
+      set(newItemRef, { text: text });
+      bucketInput.value = "";
+    });
+
+    // Firebase에 새로운 항목이 추가되면 화면에도 추가
+    onChildAdded(listRef, (data) => {
+      const key = data.key;
+      const text = data.val().text;
+      addBucketItem(key, text);
+    });
+
+    function addBucketItem(key, text) {
+      const li = document.createElement('li');
+
+      const content = document.createElement('div');
+      content.classList.add('li-content');
+      content.textContent = text;
+      li.appendChild(content);
+
+      // 우클릭 컨텍스트 메뉴 생성을 위한 이벤트 처리
+      li.addEventListener('contextmenu', function(e) {
+        e.preventDefault();
+        const oldMenu = li.querySelector('.context-menu');
+        if(oldMenu) {
+          oldMenu.remove();
+          return;
+        }
+        const menu = document.createElement('div');
+        menu.classList.add('context-menu');
+
+        const completeBtn = document.createElement('button');
+        completeBtn.textContent = "완료";
+        completeBtn.addEventListener('click', () => {
+          li.classList.toggle('completed');
+          menu.remove();
+        });
+
+        const deleteBtn = document.createElement('button');
+        deleteBtn.textContent = "삭제";
+        deleteBtn.classList.add('delete');
+        deleteBtn.addEventListener('click', () => {
+          remove(ref(db, `bucketList/${key}`));
+          li.remove();
+        });
+
+        menu.appendChild(completeBtn);
+        menu.appendChild(deleteBtn);
+        li.appendChild(menu);
+      });
+
+      bucketList.appendChild(li);
+    }
+  </script>
+</body>
+</html>
